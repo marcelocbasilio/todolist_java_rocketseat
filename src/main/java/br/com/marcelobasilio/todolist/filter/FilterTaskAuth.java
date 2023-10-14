@@ -24,31 +24,40 @@ public class FilterTaskAuth extends OncePerRequestFilter {
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
 
-		// Pegar a autenticação (usuário e senha)
-		var authorization = request.getHeader("Authorization");
-		var authEncoded = authorization.substring("Basic".length()).trim();
-		byte[] authDecoded = Base64.getDecoder().decode(authEncoded);
-		var authString = new String(authDecoded);
+		var servletPath = request.getServletPath();
 
-		String[] credentials = authString.split(":");
-		String username = credentials[0];
-		String password = credentials[1];
+		if (servletPath.startsWith("/tasks/")) {
 
-		// Validar usuário
-		var user = this.userRepository.findByUsername(username);
+			// Pegar a autenticação (usuário e senha)
+			var authorization = request.getHeader("Authorization");
+			var authEncoded = authorization.substring("Basic".length()).trim();
+			byte[] authDecoded = Base64.getDecoder().decode(authEncoded);
+			var authString = new String(authDecoded);
 
-		if (user == null) {
-			response.sendError(401);
-		} else {
-			// Validar senha
-			var passwordVerify = BCrypt.verifyer().verify(password.toCharArray(), user.getPassword());
+			String[] credentials = authString.split(":");
+			String username = credentials[0];
+			String password = credentials[1];
 
-			if (passwordVerify.verified) {
-				// Segue viagem
-				filterChain.doFilter(request, response);
-			} else {
+			// Validar usuário
+			var user = this.userRepository.findByUsername(username);
+
+			if (user == null) {
 				response.sendError(401);
+			} else {
+				// Validar senha
+				var passwordVerify = BCrypt.verifyer().verify(password.toCharArray(), user.getPassword());
+
+				if (passwordVerify.verified) {
+					request.setAttribute("idUser", user.getId());
+					filterChain.doFilter(request, response);
+				} else {
+					response.sendError(401);
+				}
 			}
+
+		} else {
+			// Segue viagem
+			filterChain.doFilter(request, response);
 		}
 
 	}
